@@ -33,9 +33,19 @@ version = VersionNumber(upstream_version.major * 100 + version_offset.major,
 
 # Collection of sources required to build FLINT
 sources = [
-    GitSource("https://github.com/flintlib/flint2.git", "fe4ecf8a99b9b7c52ad2b861e79c9c9aac5c1a0a"), # v2.9.0 + bugfixes
+    GitSource("https://github.com/albinahlback/flint2.git", "aed3b81285c8181a863c53e7c3a9938c663e4bc1"), # v2.9.0 + bugfixes
     DirectorySource("./bundled"),
 ]
+
+# Currently we backport 0292521af462dcd3ba747255a4c5ed9317d911dd,
+#                       bfbc1eb206288abe7b9ccd04d3cb104b4a2b3898,
+#                       a7a234463c0d4b5730d05ad57ab2798b2df26127
+# in make_flint_great_again.patch
+# Drop once we bump the version to 3.0
+# for f in ${WORKSPACE}/srcdir/patches/*.patch; do
+#   atomic_patch -p1 ${f}
+# done
+
 
 # Bash recipe for building across all platforms
 script = raw"""
@@ -44,21 +54,13 @@ if [[ ${target} == *musl* ]]; then
    # because of some ordering issue with pthread.h and sched.h includes
    export CFLAGS=-D_GNU_SOURCE
 elif [[ ${target} == *mingw* ]]; then
-   extraflags=--reentrant
+   extraflags=--enable-reentrant
 fi
 
-# Currently we backport 0292521af462dcd3ba747255a4c5ed9317d911dd,
-#                       bfbc1eb206288abe7b9ccd04d3cb104b4a2b3898,
-#                       a7a234463c0d4b5730d05ad57ab2798b2df26127
-# in make_flint_great_again.patch
-# Drop once we bump the version to 3.0
-for f in ${WORKSPACE}/srcdir/patches/*.patch; do
-  atomic_patch -p1 ${f}
-done
-
-./configure --prefix=$prefix --disable-static --enable-shared --with-gmp=$prefix --with-mpfr=$prefix --with-blas=$prefix ${extraflags}
+./bootstrap.sh
+./configure --host=${target} --prefix=$prefix --disable-static --enable-shared --with-gmp=$prefix --with-mpfr=$prefix --with-blas=$prefix ${extraflags}
 make -j${nproc}
-make install LIBDIR=$(basename ${libdir})
+make install
 """
 
 # These are the platforms we will build for by default, unless further
